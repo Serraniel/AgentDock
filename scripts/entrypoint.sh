@@ -49,18 +49,55 @@ persist_auth() {
   fi
 }
 
-wait_for_auth() {
-  echo "[agentdock] No auth credentials found in $AUTH_DIR."
-  echo "[agentdock] Starting first-run authentication..."
+# Determine and apply authentication.
+# Priority:
+#   1. ANTHROPIC_API_KEY env var  → API key auth (no login needed, ToS-compliant for automation)
+#   2. Existing credentials file  → restore previous OAuth session
+#   3. AUTH_MODE=console          → interactive Anthropic Console OAuth (API billing)
+#   4. AUTH_MODE=subscription     → interactive claude.ai subscription OAuth
+#   5. Default fallback           → console OAuth (same as 3)
+setup_auth() {
+  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    echo "[agentdock] Auth: ANTHROPIC_API_KEY detected — using API key (Anthropic Console billing)."
+    echo "[agentdock] No login required."
+    return 0
+  fi
+
+  if restore_auth; then
+    return 0
+  fi
+
+  echo "[agentdock] No auth credentials found. Starting first-run authentication..."
   echo ""
+
   if [ "$WEBUI_ENABLED" = "true" ]; then
-    echo "[agentdock] Web UI enabled — open http://<host>:${WEBUI_PORT} to complete authentication."
+    echo "[agentdock] Web UI enabled — open http://<host>:${WEBUI_PORT} for guidance."
     /scripts/webui.sh "$WEBUI_PORT" &
     WEBUI_PID=$!
   fi
 
-  # Run interactive login; output goes to both terminal and log
-  claude login 2>&1 | tee "$LOGS_DIR/auth.log"
+  case "${AUTH_MODE:-console}" in
+    apikey)
+      echo "[agentdock] ERROR: AUTH_MODE=apikey requires ANTHROPIC_API_KEY to be set."
+      exit 1
+      ;;
+    console)
+      echo "[agentdock] Auth mode: Anthropic Console (API billing — recommended for automation)."
+      echo "[agentdock] See docs/tos-compliance.md for guidance."
+      claude auth login --console 2>&1 | tee "$LOGS_DIR/auth.log"
+      ;;
+    subscription)
+      echo "[agentdock] Auth mode: claude.ai subscription."
+      echo "[agentdock] WARNING: Subscription plans are designed for interactive personal use."
+      echo "[agentdock] For always-on automated agents, ANTHROPIC_API_KEY is recommended."
+      echo "[agentdock] See docs/tos-compliance.md for details."
+      claude auth login --claudeai 2>&1 | tee "$LOGS_DIR/auth.log"
+      ;;
+    *)
+      echo "[agentdock] Unknown AUTH_MODE '${AUTH_MODE}'. Valid: apikey, console, subscription."
+      exit 1
+      ;;
+  esac
 
   persist_auth
 
@@ -159,9 +196,5 @@ echo "[agentdock] Data dir: $DATA_DIR"
 apply_claude_config
 setup_git_sync
 init_project_workspace
-
-if ! restore_auth; then
-  wait_for_auth
-fi
-
+setup_auth
 start_channel

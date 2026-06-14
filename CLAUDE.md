@@ -28,6 +28,26 @@ docker info
 df -h /opt
 ```
 
+### Step 1b — Choose your authentication method
+
+**Option A — API Key (recommended for automated deployments)**
+
+Get a key from [console.anthropic.com](https://console.anthropic.com) → API Keys.
+Set `ANTHROPIC_API_KEY` in the stack environment. No login step needed. This is
+the ToS-compliant path for always-on automated agents.
+
+**Option B — OAuth (Console billing)**
+
+Run `claude auth login --console` inside the container after first start.
+Uses Anthropic Console billing (pay-per-use), appropriate for automation.
+
+**Option C — claude.ai Subscription OAuth**
+
+Run `claude auth login --claudeai` inside the container.
+Subscription plans are intended for personal interactive use — verify your
+plan's ToS allows automated agent usage before choosing this option.
+See [docs/tos-compliance.md](docs/tos-compliance.md) for details.
+
 ### Step 2 — Create the data directory
 
 ```bash
@@ -70,6 +90,8 @@ services:
 ```
 
 Required variables to fill in:
+- `ANTHROPIC_API_KEY` — from console.anthropic.com (recommended) OR leave empty and use OAuth
+- `AUTH_MODE` — `console` (default) or `subscription` (only if not using API key)
 - `TELEGRAM_BOT_TOKEN` — from @BotFather on Telegram (send `/newbot`)
 - OR `DISCORD_BOT_TOKEN` + change `CHANNEL` to `discord`
 
@@ -119,9 +141,12 @@ Claude should respond with its capabilities.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
+| `ANTHROPIC_API_KEY` | recommended | — | API key from console.anthropic.com — skips OAuth, ToS-compliant for automation |
+| `AUTH_MODE` | no | `console` | `console` (API billing OAuth), `subscription` (claude.ai OAuth), `apikey` (requires API key) |
 | `CHANNEL` | yes | `telegram` | `telegram`, `discord`, or `none` |
 | `TELEGRAM_BOT_TOKEN` | if telegram | — | Token from @BotFather |
 | `DISCORD_BOT_TOKEN` | if discord | — | Token from Discord Developer Portal |
+| `DISCORD_CHANNEL_ID` | no | — | Restrict Discord bot to one channel (recommended) |
 | `WEBUI_ENABLED` | no | `false` | Show status page on port 8080 during first run |
 | `WEBUI_PORT` | no | `8080` | Web UI port |
 | `GIT_SYNC_URL` | no | — | Remote to push project workspace to |

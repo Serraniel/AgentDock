@@ -2,6 +2,10 @@
 
 An always-on, self-hosted Claude Code agent running in Docker. Control it from anywhere via Telegram or Discord using [Claude Code Channels](https://docs.anthropic.com/en/docs/claude-code/channels).
 
+**AgentDock is an independent community project and is not affiliated with or endorsed by Anthropic PBC.**
+Using AgentDock requires your own Anthropic account. For automated/always-on deployments, an
+[Anthropic Console API key](https://console.anthropic.com) is recommended — see [docs/tos-compliance.md](docs/tos-compliance.md).
+
 AgentDock runs Claude Code on your own infrastructure — a VPS, NAS, thin client, or any Docker host — so your AI coding agent is reachable from your phone or any device, independent of your main machine.
 
 ## Features
@@ -19,14 +23,16 @@ AgentDock runs Claude Code on your own infrastructure — a VPS, NAS, thin clien
 ### 1. Prerequisites
 
 - Docker and Docker Compose
-- A [claude.ai](https://claude.ai) subscription (Channels require oauth login, not API key)
+- An Anthropic account — either:
+  - **Recommended:** [Anthropic Console](https://console.anthropic.com) API key (pay-per-use, ToS-compliant for automation)
+  - **Alternative:** [claude.ai](https://claude.ai) Pro/Max subscription (personal interactive use)
 - A Telegram bot token from [@BotFather](https://t.me/BotFather) or a Discord bot token
 
 ### 2. Configure
 
 ```bash
 cp .env.example .env
-# Edit .env and fill in CHANNEL and TELEGRAM_BOT_TOKEN (or DISCORD_BOT_TOKEN)
+# Set ANTHROPIC_API_KEY, CHANNEL, and TELEGRAM_BOT_TOKEN (or DISCORD_BOT_TOKEN)
 ```
 
 ### 3. Start
@@ -36,13 +42,19 @@ docker compose up -d
 docker logs agentdock -f
 ```
 
-On first run, AgentDock needs to authenticate with claude.ai:
+**If using an API key** (`ANTHROPIC_API_KEY` set in `.env`): no login step needed — skip to step 4.
+
+**If using OAuth**: on first run, authenticate inside the container:
 
 ```bash
-docker exec -it agentdock claude login
+# Recommended — Anthropic Console (API billing, ToS-compliant for automation):
+docker exec -it agentdock claude auth login --console
+
+# Alternative — claude.ai subscription (personal interactive use only):
+docker exec -it agentdock claude auth login --claudeai
 ```
 
-Follow the URL printed in the terminal, log in with your claude.ai account, and paste the code back. Credentials are saved to your data volume and this step is not needed again.
+Follow the URL, log in, paste the code back. Credentials are saved to your data volume and not needed again.
 
 ### 4. Pair your Telegram / Discord account
 

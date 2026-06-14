@@ -6,6 +6,9 @@ services:
     env_file:
       - .env
     environment:
+      # Auth — see docs/tos-compliance.md
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AUTH_MODE: ${AUTH_MODE:-console}
       CHANNEL: ${CHANNEL:-telegram}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
