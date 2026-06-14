@@ -89,14 +89,18 @@ container restarts. You will not need to repeat this step unless you delete the 
 
 ### Step 5 — Pair your Telegram account
 
-1. Start the container (it will print a pairing code in the logs)
-2. Open Telegram, send the pairing code to your bot
+1. Start the container and watch the logs — a pairing code will be printed
+2. Open Telegram and send that code to your bot
 3. Only your paired account can send commands — all others are silently ignored
 
-Check logs:
 ```bash
 docker logs agentdock -f
+# Look for: "Send this code to your bot to link your account: XXXXXX"
 ```
+
+**Note on modes:** AgentDock automatically detects which mode to use:
+- If Claude Code has native Channels support (`--channel` flag): uses that — full persistent session
+- Otherwise: uses the built-in fallback bot (`claude --print` per message) — works today, stateless per message
 
 ### Step 6 — Verify
 

@@ -102,6 +102,12 @@ init_project_workspace() {
   cd "$workspace"
 }
 
+# Detect whether the installed claude binary supports native Channels.
+# Returns 0 (true) if supported, 1 (false) if not.
+has_native_channel_support() {
+  claude --help 2>&1 | grep -q -- '--channel'
+}
+
 start_channel() {
   case "$CHANNEL" in
     telegram)
@@ -109,16 +115,31 @@ start_channel() {
         echo "[agentdock] ERROR: TELEGRAM_BOT_TOKEN is required for channel=telegram"
         exit 1
       fi
-      echo "[agentdock] Starting Claude Code with Telegram channel..."
-      exec claude --channel telegram
+      if has_native_channel_support; then
+        echo "[agentdock] Native Channels detected — starting claude --channel telegram"
+        exec claude --channel telegram
+      else
+        echo "[agentdock] Native Channels not available in this Claude Code version."
+        echo "[agentdock] Starting fallback Telegram bot (claude --print mode)..."
+        echo "[agentdock] NOTE: Session context is not preserved between messages in fallback mode."
+        exec bun run /scripts/telegram-fallback.ts
+      fi
       ;;
     discord)
       if [ -z "${DISCORD_BOT_TOKEN:-}" ]; then
         echo "[agentdock] ERROR: DISCORD_BOT_TOKEN is required for channel=discord"
         exit 1
       fi
-      echo "[agentdock] Starting Claude Code with Discord channel..."
-      exec claude --channel discord
+      if has_native_channel_support; then
+        echo "[agentdock] Native Channels detected — starting claude --channel discord"
+        exec claude --channel discord
+      else
+        echo "[agentdock] Native Channels not available in this Claude Code version."
+        echo "[agentdock] Starting fallback Discord bot (claude --print mode)..."
+        echo "[agentdock] NOTE: Session context is not preserved between messages in fallback mode."
+        echo "[agentdock] NOTE: Set DISCORD_CHANNEL_ID to restrict the bot to one channel."
+        exec bun run /scripts/discord-fallback.ts
+      fi
       ;;
     none|"")
       echo "[agentdock] No channel configured — starting interactive Claude Code session."
