@@ -32,21 +32,26 @@ jobs:
             base_image: archlinux
             base_version: latest
             tags_suffix: arch
+            # archlinux only publishes amd64 images
+            build_platforms: linux/amd64
           - platform: debian
             dockerfile: docker/debian/Dockerfile
             base_image: debian
             base_version: bookworm-slim
             tags_suffix: debian
+            build_platforms: linux/amd64,linux/arm64
           - platform: ubuntu
             dockerfile: docker/ubuntu/Dockerfile
             base_image: ubuntu
             base_version: "24.04"
             tags_suffix: ubuntu
+            build_platforms: linux/amd64,linux/arm64
           - platform: alpine
             dockerfile: docker/alpine/Dockerfile
             base_image: alpine
             base_version: "3.21"
             tags_suffix: alpine
+            build_platforms: linux/amd64,linux/arm64
 
     steps:
       - name: Checkout
@@ -103,4 +108,4 @@ jobs:
             VCS_REF=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.build_platforms }}
