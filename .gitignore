@@ -1,0 +1,4 @@
+.env
+agentdock-data/
+*.log
+.DS_Store

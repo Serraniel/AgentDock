@@ -1,0 +1,25 @@
+services:
+  agentdock:
+    image: ghcr.io/serraniel/agentdock:latest
+    container_name: agentdock
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CHANNEL: ${CHANNEL:-telegram}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      WEBUI_ENABLED: ${WEBUI_ENABLED:-false}
+      GIT_SYNC_URL: ${GIT_SYNC_URL:-}
+      GIT_SYNC_TOKEN: ${GIT_SYNC_TOKEN:-}
+      GIT_USER_NAME: ${GIT_USER_NAME:-AgentDock}
+      GIT_USER_EMAIL: ${GIT_USER_EMAIL:-agentdock@localhost}
+    volumes:
+      - ${DATA_PATH:-./agentdock-data}:/data
+    ports:
+      - "${WEBUI_PORT:-8080}:8080"
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp

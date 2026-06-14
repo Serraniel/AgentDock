@@ -1,0 +1,82 @@
+name: Auto-update on new Claude Code release
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-and-release:
+    name: Check for new Claude Code version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest Claude Code version from npm
+        id: npm
+        run: |
+          VERSION=$(npm view @anthropic-ai/claude-code version)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Get current tracked version
+        id: current
+        run: |
+          if [ -f .claude-version ]; then
+            echo "version=$(cat .claude-version)" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=none" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Detect version change
+        id: compare
+        env:
+          NEW_VERSION: ${{ steps.npm.outputs.version }}
+          CUR_VERSION: ${{ steps.current.outputs.version }}
+        run: |
+          if [ "$NEW_VERSION" != "$CUR_VERSION" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Version changed: $CUR_VERSION -> $NEW_VERSION"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No change: $CUR_VERSION"
+          fi
+
+      - name: Update tracked version file
+        if: steps.compare.outputs.changed == 'true'
+        env:
+          NEW_VERSION: ${{ steps.npm.outputs.version }}
+        run: |
+          echo "$NEW_VERSION" > .claude-version
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .claude-version
+          git commit -m "chore: track Claude Code $NEW_VERSION"
+          git push
+
+      - name: Determine next AgentDock version
+        if: steps.compare.outputs.changed == 'true'
+        id: next_version
+        run: |
+          LATEST_TAG=$(git tag --sort=-v:refname | grep '^v' | head -1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "tag=v0.1.0" >> "$GITHUB_OUTPUT"
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST_TAG#v}"
+            PATCH=$((PATCH + 1))
+            echo "tag=v${MAJOR}.${MINOR}.${PATCH}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release tag
+        if: steps.compare.outputs.changed == 'true'
+        env:
+          NEW_TAG: ${{ steps.next_version.outputs.tag }}
+          CLAUDE_VERSION: ${{ steps.npm.outputs.version }}
+        run: |
+          git tag -a "$NEW_TAG" -m "Release $NEW_TAG — Claude Code $CLAUDE_VERSION"
+          git push origin "$NEW_TAG"

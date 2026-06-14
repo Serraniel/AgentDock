@@ -1,0 +1,113 @@
+name: Auto-update on base image changes
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check-base-images:
+    name: Check ${{ matrix.platform }} base image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: arch
+            image: archlinux
+            tag: latest
+          - platform: debian
+            image: debian
+            tag: bookworm-slim
+          - platform: ubuntu
+            image: ubuntu
+            tag: "24.04"
+          - platform: alpine
+            image: alpine
+            tag: "3.21"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get current digest
+        id: current
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          FILE=".base-digests/$PLATFORM"
+          if [ -f "$FILE" ]; then
+            echo "digest=$(cat "$FILE")" >> "$GITHUB_OUTPUT"
+          else
+            echo "digest=none" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Get upstream digest
+        id: upstream
+        env:
+          BASE_IMAGE: ${{ matrix.image }}
+          BASE_TAG: ${{ matrix.tag }}
+        run: |
+          DIGEST=$(docker buildx imagetools inspect \
+            "${BASE_IMAGE}:${BASE_TAG}" \
+            --format '{{index .Manifest.Digest}}' 2>/dev/null || echo "unknown")
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Detect change and update digest file
+        id: changed
+        env:
+          NEW_DIGEST: ${{ steps.upstream.outputs.digest }}
+          CUR_DIGEST: ${{ steps.current.outputs.digest }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          if [ "$NEW_DIGEST" != "$CUR_DIGEST" ] && [ "$NEW_DIGEST" != "unknown" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            mkdir -p .base-digests
+            echo "$NEW_DIGEST" > ".base-digests/$PLATFORM"
+            echo "$PLATFORM base image updated: $CUR_DIGEST -> $NEW_DIGEST"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit updated digest
+        if: steps.changed.outputs.changed == 'true'
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .base-digests/
+          git commit -m "chore: update $PLATFORM base image digest"
+          git push
+
+      - name: Trigger rebuild on latest tag
+        if: steps.changed.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const refs = await github.rest.git.listMatchingRefs({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'tags/v'
+            });
+            const tags = refs.data.sort((a, b) =>
+              b.ref.localeCompare(a.ref, undefined, { numeric: true })
+            );
+            const ref = tags.length ? tags[0].ref.replace('refs/tags/', '') : null;
+            if (!ref) {
+              core.warning('No version tags found, skipping rebuild trigger');
+              return;
+            }
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'build.yml',
+              ref
+            });
+            core.info(`Triggered build for ${ref}`);
